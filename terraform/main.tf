@@ -7,12 +7,12 @@ resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true
-  tags = { Name = "${var.project_name}-vpc" }
+  tags                 = { Name = "${var.project_name}-vpc" }
 }
 
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
-  tags = { Name = "${var.project_name}-igw" }
+  tags   = { Name = "${var.project_name}-igw" }
 }
 
 # Public subnets
@@ -23,7 +23,7 @@ resource "aws_subnet" "public" {
   cidr_block              = each.value
   availability_zone       = data.aws_availability_zones.available.names[tonumber(each.key)]
   map_public_ip_on_launch = true
-  tags = { Name = "${var.project_name}-public-${each.key}" }
+  tags                    = { Name = "${var.project_name}-public-${each.key}" }
 }
 
 # Private subnets
@@ -33,19 +33,19 @@ resource "aws_subnet" "private" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = each.value
   availability_zone = data.aws_availability_zones.available.names[tonumber(each.key)]
-  tags = { Name = "${var.project_name}-private-${each.key}" }
+  tags              = { Name = "${var.project_name}-private-${each.key}" }
 }
 
 resource "aws_eip" "nat_eip" {
   domain = "vpc"
-  tags = { Name = "${var.project_name}-nat-eip" }
+  tags   = { Name = "${var.project_name}-nat-eip" }
 }
 
 resource "aws_nat_gateway" "nat" {
   allocation_id = aws_eip.nat_eip.id
   subnet_id     = values(aws_subnet.public)[0].id
-  tags = { Name = "${var.project_name}-nat" }
-  depends_on = [aws_internet_gateway.igw]
+  tags          = { Name = "${var.project_name}-nat" }
+  depends_on    = [aws_internet_gateway.igw]
 }
 
 resource "aws_route_table" "public" {
@@ -178,6 +178,35 @@ resource "aws_lb_listener" "http" {
   }
 }
 
+
+# -------------------------------
+# DB Password (secure generation)
+# -------------------------------
+resource "random_password" "db_password" {
+  length  = 16
+  special = true
+  override_special = "!#$%^&*()-_=+[]{}<>:?" # all allowed by RDS
+}
+
+resource "aws_secretsmanager_secret" "db_secret" {
+  name        = "${var.project_name}-db-password-v2"
+  description = "Database password for ${var.project_name}"
+}
+
+resource "aws_secretsmanager_secret_version" "db_secret_value" {
+  secret_id     = aws_secretsmanager_secret.db_secret.id
+  secret_string = jsonencode({
+    password = random_password.db_password.result
+  })
+}
+
+# Optional: Output the secret ARN for reference (safe)
+output "db_secret_arn" {
+  value       = aws_secretsmanager_secret.db_secret.arn
+  description = "The ARN of the stored DB password in Secrets Manager"
+  sensitive   = true
+}
+
 # -------------------------------
 # RDS (PostgreSQL)
 # -------------------------------
@@ -187,20 +216,20 @@ resource "aws_db_subnet_group" "db_subnets" {
 }
 
 resource "aws_db_instance" "app_db" {
-  identifier                 = "${var.project_name}-db"
-  engine                     = "postgres"
-  engine_version             = "16.3"
-  instance_class             = var.db_instance_class
-  allocated_storage          = var.db_allocated_storage
-  username                   = var.db_username
-  password                   = var.db_password
-  db_subnet_group_name       = aws_db_subnet_group.db_subnets.name
-  vpc_security_group_ids     = [aws_security_group.db_sg.id]
-  multi_az                   = var.db_multi_az
-  publicly_accessible        = false
-  skip_final_snapshot        = true
-  delete_automated_backups   = true
-  backup_retention_period    = 0
+  identifier               = "${var.project_name}-db"
+  engine                   = "postgres"
+  engine_version           = "16.3"
+  instance_class           = var.db_instance_class
+  allocated_storage        = var.db_allocated_storage
+  username                 = var.db_username
+  password                 = random_password.db_password.result
+  db_subnet_group_name     = aws_db_subnet_group.db_subnets.name
+  vpc_security_group_ids   = [aws_security_group.db_sg.id]
+  multi_az                 = var.db_multi_az
+  publicly_accessible      = false
+  skip_final_snapshot      = true
+  delete_automated_backups = true
+  backup_retention_period  = 0
 }
 
 # -------------------------------
@@ -211,9 +240,9 @@ data "aws_ssm_parameter" "al2" {
 }
 
 resource "aws_launch_template" "app_lt" {
-  name_prefix   = "${var.project_name}-lt-"
-  image_id      = data.aws_ssm_parameter.al2.value
-  instance_type = "t3.micro"
+  name_prefix            = "${var.project_name}-lt-"
+  image_id               = data.aws_ssm_parameter.al2.value
+  instance_type          = "t3.micro"
   vpc_security_group_ids = [aws_security_group.app_sg.id]
 
   user_data = base64encode(templatefile("${path.module}/user_data.sh", {
@@ -221,7 +250,7 @@ resource "aws_launch_template" "app_lt" {
     app_port       = var.app_port
     db_host        = aws_db_instance.app_db.address
     db_user        = var.db_username
-    db_password    = var.db_password
+    db_secret_name  = aws_secretsmanager_secret.db_secret.name
     db_name        = "cloudcart"
     db_port        = 5432
   }))
@@ -235,13 +264,13 @@ resource "aws_launch_template" "app_lt" {
 }
 
 resource "aws_autoscaling_group" "app_asg" {
-  name                      = "${var.project_name}-asg"
-  desired_capacity          = var.desired_capacity
-  max_size                  = var.max_size
-  min_size                  = var.min_size
-  health_check_type         = "ELB"
-  vpc_zone_identifier       = [for s in aws_subnet.private : s.id]
-  target_group_arns         = [aws_lb_target_group.app_tg.arn]
+  name                = "${var.project_name}-asg"
+  desired_capacity    = var.desired_capacity
+  max_size            = var.max_size
+  min_size            = var.min_size
+  health_check_type   = "ELB"
+  vpc_zone_identifier = [for s in aws_subnet.private : s.id]
+  target_group_arns   = [aws_lb_target_group.app_tg.arn]
 
   launch_template {
     id      = aws_launch_template.app_lt.id
@@ -281,6 +310,7 @@ resource "aws_cloudwatch_metric_alarm" "cpu_high" {
     AutoScalingGroupName = aws_autoscaling_group.app_asg.name
   }
 
-  alarm_description = "Alarm when average ASG CPU > 70% for 5 minutes"
+  alarm_description  = "Alarm when average ASG CPU > 70% for 5 minutes"
   treat_missing_data = "notBreaching"
 }
+
