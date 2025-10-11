@@ -189,7 +189,7 @@ resource "random_password" "db_password" {
 }
 
 resource "aws_secretsmanager_secret" "db_secret" {
-  name        = "${var.project_name}-db-password-v2"
+  name        = "${var.project_name}-db-password-v3"
   description = "Database password for ${var.project_name}"
 }
 
