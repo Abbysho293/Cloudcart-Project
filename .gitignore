@@ -1,0 +1,76 @@
+# ==========================================================
+# 🌩️ Terraform + AWS DevOps Project
+# ==========================================================
+
+# ------------------------------
+# Terraform build folders & files
+# ------------------------------
+
+# Local Terraform directories (both in root and subfolders)
+.terraform/
+**/.terraform/
+
+# Terraform lock file (can be regenerated)
+.terraform.lock.hcl
+
+# Local state files (use S3 backend instead)
+terraform.tfstate
+terraform.tfstate.backup
+**/terraform.tfstate
+**/terraform.tfstate.backup
+
+# Crash logs (from failed Terraform runs)
+crash.log
+crash.*.log
+**/crash.log
+**/crash.*.log
+
+# Local override files (for testing)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+**/override.tf
+**/override.tf.json
+**/*_override.tf
+**/*_override.tf.json
+
+# Auto variables that might contain secrets
+*.auto.tfvars
+*.tfvars
+*.tfvars.json
+**/*.auto.tfvars
+**/*.tfvars
+**/*.tfvars.json
+
+# ------------------------------
+# AWS credentials & keys
+# ------------------------------
+.aws/
+*.pem
+*.key
+*.crt
+**/*.pem
+**/*.key
+**/*.crt
+
+# ------------------------------
+# Editor / IDE / OS junk files
+# ------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ------------------------------
+# CI/CD & build outputs
+# ------------------------------
+# Ignore temporary artifacts from pipelines (if any)
+tmp/
+build/
+dist/
+logs/
+.env
+.env.*
