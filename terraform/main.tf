@@ -314,3 +314,11 @@ resource "aws_cloudwatch_metric_alarm" "cpu_high" {
   treat_missing_data = "notBreaching"
 }
 
+terraform {
+  backend "s3" {
+    bucket         = "abby-terraform-state-bucket"
+    key            = "envs/prod/terraform.tfstate"
+    region         = "us-west-2"
+    encrypt        = true
+  }
+}
